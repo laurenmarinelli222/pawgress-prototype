@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560">
+  <rect width="800" height="560" fill="#EDE7F8"/>
+  <rect x="0" y="360" width="800" height="200" fill="#D9CFF0"/>
+  <ellipse cx="400" cy="400" rx="260" ry="70" fill="#C9B8E6"/>
+  <rect x="120" y="250" width="560" height="180" rx="40" fill="#F4E9FF"/>
+  <ellipse cx="400" cy="330" rx="180" ry="90" fill="#F3C56B"/>
+  <ellipse cx="300" cy="300" rx="40" ry="50" fill="#E0A84A"/>
+  <circle cx="455" cy="300" r="48" fill="#F7D68A"/>
+  <circle cx="440" cy="292" r="6" fill="#3D2A5C"/>
+  <circle cx="468" cy="292" r="6" fill="#3D2A5C"/>
+  <ellipse cx="454" cy="308" rx="8" ry="5" fill="#6B3A22"/>
+  <path d="M430 250 C 400 180, 500 180, 478 250" fill="#E0A84A"/>
+  <text x="400" y="520" text-anchor="middle" font-family="Nunito, Avenir, sans-serif" font-size="28" fill="#5B2A9E" font-weight="700">Resting comfortably</text>
+</svg>

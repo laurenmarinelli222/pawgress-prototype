@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560">
+  <rect width="800" height="560" fill="#E5F7EE"/>
+  <ellipse cx="400" cy="420" rx="280" ry="80" fill="#CDEADB"/>
+  <rect x="200" y="240" width="400" height="40" rx="8" fill="#B7D9C6"/>
+  <ellipse cx="400" cy="300" rx="150" ry="100" fill="#F0C878"/>
+  <circle cx="500" cy="250" r="55" fill="#F6D990"/>
+  <circle cx="485" cy="242" r="6" fill="#3D2A5C"/>
+  <circle cx="515" cy="242" r="6" fill="#3D2A5C"/>
+  <ellipse cx="500" cy="260" rx="8" ry="5" fill="#8A4E2A"/>
+  <circle cx="530" cy="268" r="8" fill="#E89AA8"/>
+  <path d="M360 250 C 330 170 470 170 430 250" fill="#F6E2A8"/>
+  <text x="400" y="520" text-anchor="middle" font-family="Nunito, Avenir, sans-serif" font-size="28" fill="#1F9D6A" font-weight="700">After the visit</text>
+</svg>
