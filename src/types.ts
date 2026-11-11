@@ -17,17 +17,54 @@ export type Staff = {
   pending?: boolean
 }
 
+export type ContactMethod = 'phone' | 'text' | 'email' | 'app'
+export type Sex = 'Male' | 'Female' | 'Unknown'
+export type NeuterStatus = 'Spayed' | 'Neutered' | 'Intact' | 'Unknown'
+export type WeightUnit = 'lb' | 'kg'
+export type AgeMode = 'dob' | 'estimated'
+
+export type AuthorizedPickup = {
+  id: string
+  name: string
+  phone: string
+  relationship: string
+}
+
+export type StaffNote = {
+  id: string
+  patientId: string
+  body: string
+  authorId: string
+  authorName: string
+  createdAt: string
+  updatedAt?: string
+}
+
+export type Address = {
+  street: string
+  city: string
+  state: string
+  zip: string
+}
+
 export type Owner = {
   id: string
   name: string
   petIds: string[]
   phone: string
+  phoneSecondary?: string
+  email?: string
+  address?: Address
+  preferredContact?: ContactMethod
+  emergencyName?: string
+  emergencyPhone?: string
+  authorizedPickups?: AuthorizedPickup[]
 }
 
 export type Patient = {
   id: string
   name: string
-  species: 'dog' | 'cat'
+  species: 'dog' | 'cat' | 'other'
   breed: string
   pronouns: { subject: string; object: string; possessive: string }
   visitType: string
@@ -40,6 +77,27 @@ export type Patient = {
   lastUpdateById: string
   avatarKey: string
   today: boolean
+  patientId: string
+  photoUrl?: string
+  nickname?: string
+  sex?: Sex
+  neuterStatus?: NeuterStatus
+  coatColor?: string
+  markings?: string
+  characteristics?: string
+  weight?: number
+  weightUnit?: WeightUnit
+  microchip?: string
+  behavioralNotes?: string
+  ageMode?: AgeMode
+  dateOfBirth?: string
+  estimatedAge?: string
+  visitReason?: string
+  visitDate?: string
+  checkInAt?: string
+  assignedVetId?: string
+  profileEditedBy?: string
+  profileEditedAt?: string
 }
 
 export type VisitUpdate = {
@@ -107,9 +165,12 @@ export type ClinicSettings = {
   phoneTel: string
 }
 
+export const SCHEMA_VERSION = 2
+
 export type AppState = {
   workspaceId: string
   version: number
+  schemaVersion: number
   clinicName: string
   settings: ClinicSettings
   staff: Staff[]
@@ -118,6 +179,8 @@ export type AppState = {
   updates: VisitUpdate[]
   pickups: Pickup[]
   notifications: Notice[]
+  staffNotes: StaffNote[]
+  nextPatientSeq: number
 }
 
 export type Session =

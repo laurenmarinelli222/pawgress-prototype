@@ -12,6 +12,7 @@ import {
   asset,
 } from './logic'
 import { Ico, PetAvatar, StatusPill, Wordmark } from './avatars'
+import { AddPatientForm, PatientProfile, filterPatients } from './profile'
 
 type StaffTab = 'patients' | 'pickups' | 'updates' | 'settings'
 type StaffView =
@@ -181,7 +182,7 @@ export function StaffApp({
         }}
       />
     ) : (
-      <Detail
+      <PatientProfile
         state={state}
         staff={staff}
         patientId={selectedId}
@@ -189,6 +190,7 @@ export function StaffApp({
         onPickup={() => setView({ name: 'pickup', id: selectedId })}
         onPhoto={onPhoto}
         apply={apply}
+        showToast={showToast}
       />
     )
   ) : tab === 'patients' ? (
@@ -289,6 +291,9 @@ export function StaffApp({
                     onSend={openSend}
                     compact
                     selectedId={selectedId}
+                    staff={staff}
+                    apply={apply}
+                    showToast={showToast}
                   />
                 </div>
                 <div className="detail-col">{detailPanel}</div>
@@ -341,10 +346,13 @@ export function StaffApp({
           setTodayOnly={setTodayOnly}
           onOpen={(id) => setView({ name: 'detail', id })}
           onSend={(id) => setView({ name: 'send', id })}
+          staff={staff}
+          apply={apply}
+          showToast={showToast}
         />
       )}
       {tab === 'patients' && view.name === 'detail' && (
-        <Detail
+        <PatientProfile
           state={state}
           staff={staff}
           patientId={view.id}
@@ -352,6 +360,7 @@ export function StaffApp({
           onPickup={() => setView({ name: 'pickup', id: view.id })}
           onPhoto={onPhoto}
           apply={apply}
+          showToast={showToast}
         />
       )}
       {tab === 'patients' && view.name === 'send' && (
@@ -435,6 +444,9 @@ function List({
   onSend,
   compact,
   selectedId,
+  staff,
+  apply,
+  showToast,
 }: {
   state: AppState
   todayOnly: boolean
@@ -443,18 +455,49 @@ function List({
   onSend: (id: string) => void
   compact?: boolean
   selectedId?: string
+  staff?: Staff
+  apply?: (fn: (s: AppState) => AppState) => void
+  showToast?: (m: string) => void
 }) {
-  const list = state.patients.filter((p) => (todayOnly ? p.today : true))
+  const [query, setQuery] = useState('')
+  const [adding, setAdding] = useState(false)
+  const list = filterPatients(state.patients.filter((p) => (todayOnly ? p.today : true)), query)
   return (
     <>
       <div className="tabs">
         <button className={`seg ${todayOnly ? 'active' : ''}`} onClick={() => setTodayOnly(true)}>
           Patients Today ({state.patients.filter((p) => p.today).length})
         </button>
-        <button className={`seg ${!todayOnly ? 'active' : ''}`} onClick={() => setTodayOnly(false)}>
+        <button className={`seg ${!todayOnly ? 'active' : ''}`} onClick={() => setTodayOnly(false)} data-testid="all-patients-tab">
           All Patients
         </button>
       </div>
+      <div className="list-toolbar">
+        <input
+          className="search-input"
+          data-testid="patient-search"
+          placeholder="Search by pet, owner, or patient ID"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {staff && apply && showToast && (
+          <button className="btn btn-ghost btn-sm" data-testid="add-patient" onClick={() => setAdding((v) => !v)}>
+            {adding ? 'Cancel' : 'Add patient'}
+          </button>
+        )}
+      </div>
+      {adding && staff && apply && showToast && (
+        <AddPatientForm
+          staff={staff}
+          apply={apply}
+          showToast={showToast}
+          onCreated={(id) => {
+            setAdding(false)
+            onOpen(id)
+          }}
+          onCancel={() => setAdding(false)}
+        />
+      )}
       <div className="scroll">
         {list.map((p) => {
           const pickup = activePickup(state, p.id)
@@ -489,131 +532,6 @@ function List({
         <p className="footer-note">Prototype: push notifications simulated</p>
       </div>
     </>
-  )
-}
-
-function Detail({
-  state,
-  staff,
-  patientId,
-  onSend,
-  onPickup,
-  onPhoto,
-  apply,
-}: {
-  state: AppState
-  staff: Staff
-  patientId: string
-  onSend: () => void
-  onPickup: () => void
-  onPhoto: (src: string) => void
-  apply: (fn: (s: AppState) => AppState) => void
-}) {
-  const p = state.patients.find((x) => x.id === patientId)
-  const pickup = p ? activePickup(state, p.id) : undefined
-  const updates = state.updates
-    .filter((u) => u.patientId === patientId)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-  const latest = [...updates].reverse()[0]
-  if (!p) return <div className="scroll">Patient not found.</div>
-  const owner = state.owners.find((o) => o.id === p.ownerId)
-  return (
-    <div className="scroll">
-      <div className="card patient-main">
-        <PetAvatar name={p.avatarKey} size={64} />
-        <div className="patient-info">
-          <div className="row space">
-            <h3 style={{ margin: 0 }}>{p.name}</h3>
-            <StatusPill status={p.currentStatus} />
-          </div>
-          <div className="meta">{p.breed} · {p.visitType}</div>
-          <div className="meta">Owner: {p.ownerName}</div>
-          {owner && (
-            <a className="meta" href={`tel:${owner.phone.replace(/[^\d+]/g, '')}`} style={{ color: 'var(--purple)' }}>
-              {owner.phone}
-            </a>
-          )}
-        </div>
-      </div>
-      {pickup && (
-        <div className={`card pickup-card`}>
-          <div className="row space">
-            <strong>Pickup</strong>
-            <StatusPill status={pickup.status} />
-          </div>
-          <div className="pickup-time">{pickup.proposedTime}</div>
-          <div className="meta">{formatProposed(pickup.proposedDate, pickup.proposedTime)}</div>
-          {(pickup.status === 'Needs a Call' || pickup.status === 'Declined') && (
-            <div className="alert-banner" style={{ marginTop: 10 }}>
-              {pickup.status === 'Declined' ? `${p.ownerName} declined this time.` : `${p.ownerName} hasn't confirmed.`} Call to arrange a new time — don't assign a replacement automatically.
-            </div>
-          )}
-          {(pickup.status === 'Needs a Call' || pickup.status === 'Declined') && owner && (
-            <div className="btn-row" style={{ marginTop: 8 }}>
-              <a className="btn btn-primary btn-sm" href={`tel:${owner.phone.replace(/[^\d+]/g, '')}`}>
-                Call owner
-              </a>
-              {staff.permissions.schedulePickup && (
-                <button className="btn btn-ghost btn-sm" onClick={onPickup}>
-                  Schedule a new time
-                </button>
-              )}
-            </div>
-          )}
-          {pickup.status === 'Awaiting Confirmation' && (
-            <div className="meta" style={{ marginTop: 8 }}>{pickupCountdown(pickup, state.settings).label}</div>
-          )}
-        </div>
-      )}
-      {latest?.photoUrl && (
-        <button className="card" style={{ padding: 0, overflow: 'hidden' }} onClick={() => onPhoto(latest.photoUrl!)}>
-          <img className="update-photo" src={latest.photoUrl} alt={`${p.name} latest photo`} style={{ margin: 0, borderRadius: 20 }} />
-        </button>
-      )}
-      <div className="btn-row" style={{ marginBottom: 12 }}>
-        <button className="btn btn-primary" onClick={onSend}>+ Send Update</button>
-        {staff.permissions.schedulePickup ? (
-          <button className="btn btn-ghost" onClick={onPickup}>Schedule Pickup</button>
-        ) : (
-          <button className="btn btn-ghost" disabled title="Only authorized clinical staff can schedule pickup">
-            Schedule Pickup
-          </button>
-        )}
-      </div>
-      <h3 className="h1">Visit Timeline</h3>
-      <Timeline updates={updates} onPhoto={onPhoto} />
-    </div>
-  )
-}
-
-export function Timeline({
-  updates,
-  onPhoto,
-}: {
-  updates: AppState['updates']
-  onPhoto: (src: string) => void
-}) {
-  return (
-    <div className="timeline">
-      {updates.map((u) => (
-        <div className="t-item" key={u.id}>
-          <div className="t-dot">{Ico.check}</div>
-          <div>
-            <div className="row space">
-              <strong>{u.status}</strong>
-              <span className="meta">{formatTime(u.createdAt)}</span>
-            </div>
-            <div className="meta">by {u.senderName}</div>
-            <div style={{ marginTop: 4 }}>{u.message}</div>
-            {u.photoUrl && (
-              <button className="t-thumb" onClick={() => onPhoto(u.photoUrl!)}>
-                <img src={u.photoUrl} alt="" style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover' }} />
-              </button>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
   )
 }
 

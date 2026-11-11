@@ -21,7 +21,7 @@ Open the printed URL (or http://localhost:5173). Tests (Playwright, requires Chr
 
 Clinic: Lakeside Veterinary Clinic, (570) 555-0147
 
-Staff: Sarah (Vet Tech), Jessica (Receptionist), Dr. Smith (Veterinarian), Admin Maria (Clinic Administrator). Only Dr. Smith and Admin Maria can schedule pickup.
+Staff: Sarah (Vet Tech), Jessica (Receptionist), Dr. Smith (Veterinarian), Dr. Patel (Veterinarian), Admin Maria (Clinic Administrator). Only veterinarians and Admin Maria can schedule pickup.
 
 Owners you can log in as: Jamie Carter (Buddy), Priya Shah (Luna). Other fictional owners exist for the remaining patients but are not in the login list.
 
@@ -38,4 +38,12 @@ Patients today: Buddy (Surgery, In Recovery), Luna (Hospitalization, Being Monit
 
 **Demo speed:** Real (15 / 30 min) or Fast demo (20s / 40s). Unanswered pickup requests remind the owner, then mark **Needs a Call** for staff. Status is computed from timestamps, so it still works if the app is closed.
 
-**Reset demo data** restores the starting patients and timeline.
+**Reset demo data** restores the starting patients, profiles, and timeline. Older in-browser demo data is upgraded automatically (schema v2) so open tabs keep working.
+
+## Patient profiles
+
+Tapping a patient on the staff dashboard opens a detailed profile with Overview (visit information, send update, schedule pickup, and the visit timeline), Pet, Owner, and Private staff notes. Clinic administrators, veterinarians, and vet techs can edit pet and owner profiles. Receptionists can edit owner contact details and visit information; pet clinical fields (weight, microchip, behavioral notes) are view-only for that role.
+
+Owners can open a read-only Pet profile from My Pets or the pet header. They see basic identifying details only. Private staff notes and behavioral notes are filtered out of the owner-facing data and never appear in the owner UI. Owners do not see other families' information.
+
+All profile data in this prototype is fictional (example.com emails, 555 phone numbers, and clearly fake microchip numbers).

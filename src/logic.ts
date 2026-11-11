@@ -3,7 +3,7 @@ export function asset(path: string): string {
   return `${base}${path.replace(/^\//, '')}`
 }
 
-import type { AppState, Pickup, PickupStatus } from './types'
+import type { AppState, Pickup, PickupStatus, Patient, Sex, Staff } from './types'
 
 export function reminderMs(settings: AppState['settings']): number {
   if (settings.demoSpeed === 'fast') return 20_000
@@ -49,6 +49,12 @@ export function activePickup(state: AppState, patientId: string): Pickup | undef
 }
 
 export function deriveState(state: AppState, now = Date.now()): AppState {
+  state = {
+    ...state,
+    staffNotes: state.staffNotes ?? [],
+    nextPatientSeq: state.nextPatientSeq ?? 1,
+    schemaVersion: state.schemaVersion ?? 0,
+  }
   const rMs = reminderMs(state.settings)
   const eMs = escalateMs(state.settings)
   let changed = false
@@ -208,4 +214,130 @@ export function formatProposed(date: string, time: string): string {
 
 export function defaultPickupMessage(name: string, time: string): string {
   return `${name} is ready to come home! Your pickup time is scheduled for ${time}. Please confirm that this works for you.`
+}
+
+
+export function generatePatientId(seq: number): string {
+  return `PG-${String(Math.max(1, seq)).padStart(6, '0')}`
+}
+
+export function nextPatientSeq(state: AppState): number {
+  const fromIds = state.patients.map((p) => {
+    const m = /^PG-(\d+)$/.exec(p.patientId || '')
+    return m ? Number(m[1]) + 1 : 0
+  })
+  return Math.max(state.nextPatientSeq || 1, ...fromIds, 1)
+}
+
+export function formatAge(p: Patient, now = new Date()): string {
+  if (p.ageMode === 'estimated' && p.estimatedAge) return p.estimatedAge
+  const dob = p.dateOfBirth
+  if (!dob) return p.estimatedAge || '—'
+  const [y, m, d] = dob.split('-').map(Number)
+  const birth = new Date(y, (m || 1) - 1, d || 1)
+  let months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth())
+  if (now.getDate() < birth.getDate()) months -= 1
+  if (months < 0) return '—'
+  if (months < 12) return `${months} month${months === 1 ? '' : 's'}`
+  const years = Math.floor(months / 12)
+  const rem = months % 12
+  if (rem === 0) return `${years} year${years === 1 ? '' : 's'}`
+  return `${years} year${years === 1 ? '' : 's'} ${rem} month${rem === 1 ? '' : 's'}`
+}
+
+export function formatPrettyDate(isoOrDate: string): string {
+  const d = isoOrDate.length <= 10 ? new Date(`${isoOrDate}T12:00:00`) : new Date(isoOrDate)
+  if (Number.isNaN(d.getTime())) return isoOrDate
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+export function pronounsFromSex(sex?: Sex): Patient['pronouns'] {
+  if (sex === 'Male') return { subject: 'he', object: 'him', possessive: 'his' }
+  if (sex === 'Female') return { subject: 'she', object: 'her', possessive: 'her' }
+  return { subject: 'they', object: 'them', possessive: 'their' }
+}
+
+export function isValidPhone(value: string): boolean {
+  const digits = value.replace(/\D/g, '')
+  return digits.length >= 10 && digits.length <= 15
+}
+
+export function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
+export function telHref(phone: string): string {
+  const trimmed = phone.trim()
+  const digits = trimmed.replace(/[^\d+]/g, '')
+  return `tel:${digits || trimmed}`
+}
+
+export function formatAddress(addr?: { street: string; city: string; state: string; zip: string }): string {
+  if (!addr) return ''
+  const line1 = addr.street?.trim() ?? ''
+  const line2 = [addr.city, addr.state].filter(Boolean).join(', ')
+  const zip = addr.zip ? ` ${addr.zip}` : ''
+  return [line1, `${line2}${zip}`.trim()].filter(Boolean).join(', ')
+}
+
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    // fall through to execCommand
+  }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.top = '0'
+    ta.style.left = '-9999px'
+    document.body.appendChild(ta)
+    ta.focus()
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}
+
+export type ProfilePerms = {
+  editPet: boolean
+  editPetClinical: boolean
+  editOwner: boolean
+  editVisit: boolean
+  isAdmin: boolean
+  hint: string
+}
+
+export function profilePerms(staff: Staff): ProfilePerms {
+  const isAdmin = staff.role === 'clinic_admin'
+  const isVet = staff.role === 'veterinarian'
+  const isTech = staff.role === 'vet_tech'
+  const isRec = staff.role === 'receptionist'
+  const clinical = isAdmin || isVet || isTech
+  if (isRec) {
+    return {
+      editPet: false,
+      editPetClinical: false,
+      editOwner: true,
+      editVisit: true,
+      isAdmin,
+      hint: 'You can edit owner contact details and visit information. Pet fields, including weight, microchip, and behavioral notes, are view-only for your role.',
+    }
+  }
+  return {
+    editPet: clinical,
+    editPetClinical: clinical,
+    editOwner: clinical,
+    editVisit: clinical,
+    isAdmin,
+    hint: 'You can view and edit this profile.',
+  }
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AppState, Session } from './types'
 import { createSeed } from './seed'
 import { deriveState } from './logic'
+import { migrateState } from './migrate'
 
 const DB_NAME = 'pawgress-demo'
 const DB_STORE = 'kv'
@@ -93,10 +94,11 @@ export function useAppStore() {
 
   const reload = useCallback(async (broadcast = false) => {
     const existing = await idbGet()
-    const base = existing && existing.workspaceId === 'pawgress-demo' ? existing : createSeed()
+    const raw = existing && existing.workspaceId === 'pawgress-demo' ? existing : createSeed()
+    const base = migrateState(raw)
     const derived = deriveState(base)
     setState(derived)
-    if (derived !== base) await idbSet(derived)
+    await idbSet(derived)
     if (broadcast) getChannel()?.postMessage({ type: 'invalidate' })
     return derived
   }, [])

@@ -213,6 +213,12 @@ export const Ico = {
       <path d="M10 19a2 2 0 0 0 4 0" />
     </svg>
   ),
+  lock: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  ),
   heart: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="#E45A7C" aria-hidden="true">
       <path d="M12 21s-7-4.6-9.5-9C.6 8.7 2.4 5 6 5c2 0 3.4 1 4 2 0.6-1 2-2 4-2 3.6 0 5.4 3.7 3.5 7-2.5 4.4-9.5 9-9.5 9z" />

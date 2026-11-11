@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { AppState, Owner } from './types'
 import { activePickup, formatTime } from './logic'
 import { Ico, PetAvatar, StatusPill, Wordmark } from './avatars'
-import { Timeline } from './staff'
+import { Timeline } from './timeline'
+import { OwnerPetProfile } from './profile'
 
 type OwnerTab = 'updates' | 'pets' | 'account' | 'notices'
 
@@ -23,6 +24,7 @@ export function OwnerApp({
   const [petId, setPetId] = useState(pets[0]?.id ?? '')
   const [tab, setTab] = useState<OwnerTab>('updates')
   const [menu, setMenu] = useState(false)
+  const [showPetProfile, setShowPetProfile] = useState(false)
   const pet = pets.find((p) => p.id === petId) ?? pets[0]
   const unread = state.notifications.filter(
     (n) => n.audience === 'owner' && n.ownerId === owner.id && !n.readBy.includes(owner.id),
@@ -80,9 +82,23 @@ export function OwnerApp({
           setPetId={setPetId}
           apply={apply}
           onPhoto={onPhoto}
+          onOpenProfile={() => { setShowPetProfile(true); setTab('pets') }}
         />
       )}
-      {tab === 'pets' && <MyPets pets={pets} onOpen={(id) => { setPetId(id); setTab('updates') }} />}
+      {tab === 'pets' && showPetProfile && pet && (
+        <OwnerPetProfile
+          patient={pet}
+          assignedVet={state.staff.find((s) => s.id === pet.assignedVetId)?.name}
+          onBack={() => setShowPetProfile(false)}
+        />
+      )}
+      {tab === 'pets' && !showPetProfile && (
+        <MyPets
+          pets={pets}
+          onOpenProfile={(id) => { setPetId(id); setShowPetProfile(true) }}
+          onOpenUpdates={(id) => { setPetId(id); setTab('updates') }}
+        />
+      )}
       {tab === 'account' && <Account state={state} owner={owner} pets={pets} onSwitch={onSwitch} />}
       {tab === 'notices' && (
         <OwnerNotices
@@ -99,7 +115,7 @@ export function OwnerApp({
         <button className={`tab ${tab === 'updates' ? 'active' : ''}`} onClick={() => setTab('updates')}>
           {Ico.updates} Updates
         </button>
-        <button className={`tab ${tab === 'pets' ? 'active' : ''}`} onClick={() => setTab('pets')}>
+        <button className={`tab ${tab === 'pets' ? 'active' : ''}`} onClick={() => { setTab('pets'); setShowPetProfile(false) }}>
           {Ico.pets} My Pets
         </button>
         <button className={`tab ${tab === 'account' ? 'active' : ''}`} onClick={() => setTab('account')}>
@@ -118,6 +134,7 @@ function Updates({
   setPetId,
   apply,
   onPhoto,
+  onOpenProfile,
 }: {
   state: AppState
   owner: Owner
@@ -126,6 +143,7 @@ function Updates({
   setPetId: (id: string) => void
   apply: (fn: (s: AppState) => AppState) => void
   onPhoto: (src: string) => void
+  onOpenProfile: () => void
 }) {
   const pet = pets.find((p) => p.id === petId)!
   const updates = state.updates
@@ -178,8 +196,13 @@ function Updates({
           ))}
         </div>
       )}
-      <div className="meta" style={{ marginBottom: 8 }}>
-        {pet.breed} · {pet.visitType} – Today
+      <div className="row space" style={{ marginBottom: 8, alignItems: 'center' }}>
+        <div className="meta">
+          {pet.breed} · {pet.visitType} – Today
+        </div>
+        <button className="plain-link" data-testid="open-owner-pet-profile" onClick={onOpenProfile}>
+          Pet profile
+        </button>
       </div>
 
       {pickup && (pickup.status === 'Awaiting Confirmation' || pickup.status === 'Needs a Call') && (
@@ -243,24 +266,46 @@ function Updates({
   )
 }
 
-function MyPets({ pets, onOpen }: { pets: AppState['patients']; onOpen: (id: string) => void }) {
+function MyPets({
+  pets,
+  onOpenProfile,
+  onOpenUpdates,
+}: {
+  pets: AppState['patients']
+  onOpenProfile: (id: string) => void
+  onOpenUpdates: (id: string) => void
+}) {
   return (
     <div className="scroll">
       <h2 className="h1">My Pets</h2>
       {pets.map((p) => (
-        <button key={p.id} className="card" style={{ width: '100%', textAlign: 'left' }} onClick={() => onOpen(p.id)}>
-          <div className="patient-main">
-            <PetAvatar name={p.avatarKey} />
-            <div>
-              <div className="row space">
-                <h3 style={{ margin: 0 }}>{p.name}</h3>
-                <StatusPill status={p.currentStatus} />
+        <div key={p.id} className="card" style={{ width: '100%', textAlign: 'left' }}>
+          <button className="plain-block" data-testid={`owner-pet-card-${p.id}`} onClick={() => onOpenProfile(p.id)}>
+            <div className="patient-main">
+              {p.photoUrl ? (
+                <img className="profile-photo" src={p.photoUrl} alt={p.name} width={48} height={48} />
+              ) : (
+                <PetAvatar name={p.avatarKey} />
+              )}
+              <div>
+                <div className="row space">
+                  <h3 style={{ margin: 0 }}>{p.name}</h3>
+                  <StatusPill status={p.currentStatus} />
+                </div>
+                <div className="meta">{p.breed}</div>
+                <div className="meta">{p.visitType} – Today</div>
               </div>
-              <div className="meta">{p.breed}</div>
-              <div className="meta">{p.visitType} – Today</div>
             </div>
+          </button>
+          <div className="btn-row" style={{ marginTop: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => onOpenProfile(p.id)}>
+              Pet profile
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => onOpenUpdates(p.id)}>
+              View updates
+            </button>
           </div>
-        </button>
+        </div>
       ))}
     </div>
   )
@@ -280,9 +325,19 @@ function Account({
   return (
     <div className="scroll">
       <h2 className="h1">Account</h2>
-      <div className="card">
+      <div className="card" data-testid="owner-account">
         <strong>{owner.name}</strong>
         <div className="meta">{pets.map((p) => p.name).join(', ')}</div>
+        <dl className="facts" style={{ marginTop: 12 }}>
+          <div className="fact">
+            <dt>Phone</dt>
+            <dd>{owner.phone}</dd>
+          </div>
+          <div className="fact">
+            <dt>Email</dt>
+            <dd>{owner.email || '—'}</dd>
+          </div>
+        </dl>
         <button className="btn btn-ghost" style={{ marginTop: 12 }} onClick={onSwitch}>
           Switch user
         </button>

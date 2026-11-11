@@ -4,6 +4,7 @@ import { OwnerApp } from './owner'
 import { requestNotifPermission, StaffApp } from './staff'
 import { useAppStore } from './store'
 import type { Session } from './types'
+import { selectOwnerView } from './visibility'
 
 export default function App() {
   const params = new URLSearchParams(window.location.search)
@@ -58,7 +59,7 @@ function MainApp() {
           />
         )}
         {session?.kind === 'owner' && owner && (
-          <OwnerApp state={state} owner={owner} apply={apply} onSwitch={logout} onPhoto={setPhoto} />
+          <OwnerApp state={selectOwnerView(state, owner.id)} owner={owner} apply={apply} onSwitch={logout} onPhoto={setPhoto} />
         )}
         {session && !staff && !owner && (
           <div className="scroll">

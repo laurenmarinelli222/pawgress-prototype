@@ -306,11 +306,186 @@ async function staffWideChecks(browser, prefix, viewport, expectFeed) {
   }
 }
 
+// ---- Pet + owner profiles ----
+try {
+  await wipe(page)
+  await asStaff(page, 'sarah')
+  await openPatient(page, 'Buddy')
+  rec('tap Buddy opens profile', (await page.getByTestId('patient-profile').count()) > 0)
+  rec('profile shows patient ID', (await page.getByTestId('patient-id').innerText()).includes('PG-000101'))
+  rec('overview has visit info and timeline',
+    (await page.getByTestId('visit-info').count()) > 0 &&
+    (await page.getByText('Visit Timeline').count()) > 0 &&
+    (await page.getByRole('button', { name: '+ Send Update' }).count()) > 0 &&
+    (await page.getByRole('button', { name: 'Schedule Pickup' }).count()) > 0)
+  await shot(page, 'profile-overview-phone')
+
+  await page.getByTestId('profile-tab-pet').click()
+  await page.getByTestId('pet-section').waitFor()
+  rec('pet tab shows identifying fields',
+    (await page.getByText('Golden Retriever').count()) > 0 &&
+    (await page.getByText('PG-000101').count()) > 0 &&
+    (await page.getByTestId('behavioral-notes').count()) > 0)
+  await shot(page, 'profile-pet-phone')
+
+  await page.getByTestId('profile-tab-owner').click()
+  await page.getByTestId('owner-section').waitFor()
+  rec('owner tab has Call, Email, and Copy actions',
+    (await page.getByTestId('contact-call').count()) > 0 &&
+    (await page.getByTestId('contact-email').count()) > 0 &&
+    (await page.getByTestId('contact-copy').count()) > 0)
+  rec('owner tab shows Jamie contact details',
+    (await page.getByText('Jamie Carter').count()) > 0 &&
+    (await page.getByText('jamie.carter@example.com').count()) > 0)
+  await shot(page, 'profile-owner-phone')
+
+  await page.getByTestId('profile-tab-notes').click()
+  await page.getByTestId('staff-notes-section').waitFor()
+  rec('staff notes section is labeled private',
+    (await page.getByText('Staff only — not visible to owners').count()) > 0 &&
+    (await page.getByText('Buddy becomes mouthy during nail trims').count()) > 0)
+  await shot(page, 'profile-staff-notes-phone')
+
+  await page.getByTestId('profile-tab-pet').click()
+  await page.getByTestId('edit-pet').click()
+  await shot(page, 'profile-edit-mode-phone')
+  const nameField = page.getByTestId('field-pet-name')
+  await nameField.fill('')
+  await page.getByTestId('save-profile').click()
+  rec('validation requires pet name', (await page.getByTestId('field-error').filter({ hasText: 'Pet name is required' }).count()) > 0)
+  await nameField.fill('Buddy')
+  await page.getByTestId('field-weight').fill('69.5')
+  await page.getByTestId('save-profile').click()
+  await page.getByText('Saved', { exact: true }).waitFor()
+  rec('saved toast after pet edit', true)
+  rec('weight updated for Sarah', (await page.getByText('69.5 lb').count()) > 0)
+  rec('last edited by shown', (await page.getByTestId('last-edited').innerText()).includes('Sarah'))
+
+  await page.getByTestId('profile-tab-owner').click()
+  await page.getByTestId('edit-owner').click()
+  await page.getByTestId('field-owner-phone').fill('not-a-phone')
+  await page.getByTestId('save-owner').click()
+  rec('validation rejects bad phone', (await page.getByTestId('field-error').filter({ hasText: 'valid phone' }).count()) > 0)
+  await page.getByTestId('field-owner-phone').fill('(570) 555-0190')
+  await page.getByTestId('save-owner').click()
+  await page.getByText('Saved', { exact: true }).waitFor()
+  rec('owner phone saved by Sarah', (await page.getByText('(570) 555-0190').count()) > 0)
+
+  await page.getByTestId('profile-tab-notes').click()
+  const noteBox = page.getByTestId('new-staff-note')
+  await noteBox.scrollIntoViewIfNeeded()
+  await noteBox.fill('Check incision at evening rounds — unique staff note alpha.')
+  await page.getByTestId('add-staff-note').evaluate((el) => el.click())
+  await page.getByText('unique staff note alpha').waitFor()
+  rec('staff can add a private note', (await page.getByText('unique staff note alpha').count()) > 0)
+
+  await asStaff(page, 'jessica')
+  await openPatient(page, 'Buddy')
+  await page.getByTestId('profile-tab-pet').click()
+  rec('Jessica sees Sarah weight change', (await page.getByText('69.5 lb').count()) > 0)
+  rec('receptionist cannot edit pet fields', (await page.getByTestId('edit-pet').count()) === 0)
+  rec('role hint explains receptionist limits', (await page.getByTestId('role-hint').innerText()).includes('view-only'))
+  await page.getByTestId('profile-tab-owner').click()
+  rec('Jessica sees Sarah phone change', (await page.getByText('(570) 555-0190').count()) > 0)
+  rec('receptionist can edit owner contact', (await page.getByTestId('edit-owner').count()) > 0)
+  rec('added private note visible to other staff', (await page.getByTestId('profile-tab-notes').click(), await page.getByText('unique staff note alpha').count()) > 0)
+
+  const ids = await page.evaluate(async () => {
+    const dbp = indexedDB.open('pawgress-demo', 1)
+    return await new Promise((resolve) => {
+      dbp.onsuccess = () => {
+        const tx = dbp.result.transaction('kv')
+        const q = tx.objectStore('kv').get('workspace:pawgress-demo')
+        q.onsuccess = () => resolve((q.result?.patients ?? []).map((x) => x.patientId))
+        q.onerror = () => resolve([])
+      }
+      dbp.onerror = () => resolve([])
+    })
+  })
+  const unique = new Set(ids)
+  rec('patient IDs are unique and generated', unique.size === ids.length && ids.every((id) => /^PG-\d{6}$/.test(id)), ids.join(','))
+
+  await page.getByLabel('Back').click()
+  await page.getByTestId('all-patients-tab').click()
+  await page.getByTestId('patient-search').fill('PG-000102')
+  rec('search by patient ID finds Luna', (await page.locator('article').filter({ hasText: 'Luna' }).count()) > 0 && (await page.locator('article').filter({ hasText: 'Buddy' }).count()) === 0)
+  await page.getByTestId('patient-search').fill('')
+  await page.getByTestId('add-patient').click()
+  await page.getByTestId('add-pet-name').fill('Coco')
+  await page.getByTestId('add-owner-name').fill('Pat Quinn')
+  await page.getByTestId('add-phone').fill('(570) 555-0122')
+  await page.getByTestId('add-patient-save').click()
+  await page.getByTestId('patient-profile').waitFor()
+  rec('add patient generates a new ID', (await page.getByTestId('patient-id').innerText()).includes('PG-000107'))
+
+  const PRIVATE_SNIPPETS = [
+    'Buddy becomes mouthy during nail trims',
+    'unique staff note alpha',
+    'Friendly greeter who jumps up when excited',
+    'Luna is a flight risk',
+    'Priya Shah',
+    'behavioral notes',
+  ]
+  await asOwner(page, 'jamie')
+  await page.locator('.tabbar').getByRole('button', { name: 'My Pets' }).click()
+  await page.getByTestId('owner-pet-card-buddy').click()
+  await page.getByTestId('owner-pet-profile').waitFor()
+  const jamieDom = await page.evaluate(() => document.body.innerText)
+  rec('Jamie sees Buddy profile basics',
+    jamieDom.includes('Buddy') &&
+    jamieDom.includes('PG-000101') &&
+    jamieDom.includes('Golden Retriever') &&
+    jamieDom.includes('Bud'))
+  rec('Jamie DOM has no private notes, behavioral notes, or other owners',
+    PRIVATE_SNIPPETS.every((s) => !jamieDom.includes(s)),
+    PRIVATE_SNIPPETS.filter((s) => jamieDom.includes(s)).join(' | '))
+  await shot(page, 'owner-pet-profile')
+
+  await page.locator('.tabbar').getByRole('button', { name: 'Account', exact: true }).click()
+  const acct = await page.getByTestId('owner-account').innerText()
+  rec('Jamie account shows own contact only',
+    acct.includes('Jamie Carter') && acct.includes('(570) 555-0190') && acct.includes('jamie.carter@example.com') && !acct.includes('Priya'))
+
+  await asOwner(page, 'priya')
+  await page.locator('.tabbar').getByRole('button', { name: 'My Pets' }).click()
+  await page.getByTestId('owner-pet-card-luna').click()
+  await page.getByTestId('owner-pet-profile').waitFor()
+  const priyaDom = await page.evaluate(() => document.body.innerText)
+  rec('Priya sees only Luna and not Buddy or staff notes',
+    priyaDom.includes('Luna') &&
+    priyaDom.includes('PG-000102') &&
+    !priyaDom.includes('Buddy') &&
+    !priyaDom.includes('Jamie Carter') &&
+    !priyaDom.includes('Luna is a flight risk') &&
+    !priyaDom.includes('Flighty in new spaces'))
+} catch (err) {
+  rec('profile tests unhandled error', false, String(err && err.message ? err.message : err).slice(0, 500))
+  try { await shot(page, '99-profile-error') } catch {}
+  console.error(err)
+}
+
 try {
   await staffWideChecks(browser, 'ipad', { width: 820, height: 1180 }, false)
   await staffWideChecks(browser, 'desktop', { width: 1440, height: 900 }, true)
 } catch (err) {
   rec('wide viewport runner error', false, String(err).slice(0, 400))
+}
+
+// Desktop profile screenshot (fresh staff session at 1440)
+try {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 })
+  const p = await ctx.newPage()
+  p.setDefaultTimeout(12000)
+  await wipe(p)
+  await asStaff(p, 'sarah')
+  await p.locator('article').filter({ hasText: 'Buddy' }).click()
+  await p.getByTestId('patient-profile').waitFor()
+  await p.getByText('Visit Timeline').waitFor()
+  await shot(p, 'profile-desktop')
+  rec('desktop profile screenshot captured', true)
+  await ctx.close()
+} catch (err) {
+  rec('desktop profile screenshot', false, String(err && err.message ? err.message : err).slice(0, 400))
 }
 
 await browser.close()
