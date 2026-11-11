@@ -38,7 +38,7 @@ async function asStaff(page, id) {
   if (await page.getByTestId('role-staff').count()) {
     await page.getByTestId('role-staff').click()
   } else if (await page.getByLabel('Account menu').count()) {
-    await page.getByLabel('Account menu').click()
+    await page.getByLabel('Account menu').first().click()
     await page.locator('.menu').getByRole('button', { name: 'Switch user' }).click()
     await page.getByTestId('role-staff').click()
   } else {
@@ -53,7 +53,7 @@ async function asOwner(page, id) {
   if (await page.getByTestId('role-owner').count()) {
     await page.getByTestId('role-owner').click()
   } else if (await page.getByLabel('Account menu').count()) {
-    await page.getByLabel('Account menu').click()
+    await page.getByLabel('Account menu').first().click()
     await page.locator('.menu').getByRole('button', { name: 'Switch user' }).click()
     await page.getByTestId('role-owner').click()
   } else {
@@ -244,11 +244,78 @@ try {
   rec('unhandled test error', false, String(err && err.message ? err.message : err).slice(0, 500))
   try { await shot(page, '99-error') } catch {}
   console.error(err)
-} finally {
-  await browser.close()
-  const failed = results.filter((r) => !r.ok)
-  console.log('\n======== RESULTS ========')
-  for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? ' — ' + r.detail : ''}`)
-  console.log(failed.length ? `${failed.length} failed` : 'all passed')
-  process.exit(failed.length ? 1 : 0)
 }
+
+async function overflowInfo(p) {
+  return p.evaluate(() => {
+    const w = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth)
+    const c = document.documentElement.clientWidth
+    return { ok: w <= c + 2, w, c }
+  })
+}
+
+async function staffWideChecks(browser, prefix, viewport, expectFeed) {
+  const ctx = await browser.newContext({
+    viewport,
+    hasTouch: prefix === 'ipad',
+    deviceScaleFactor: prefix === 'ipad' ? 2 : 1,
+  })
+  const p = await ctx.newPage()
+  p.setDefaultTimeout(12000)
+  try {
+    await wipe(p)
+    await asStaff(p, 'maria')
+    await p.getByTestId('staff-wide').waitFor()
+    rec(`${prefix} staff uses wide layout`, true)
+    rec(`${prefix} sidebar has Patients, Pickups, Updates, Settings, Staff management`,
+      (await p.locator('.side-link').filter({ hasText: 'Patients' }).count()) > 0 &&
+      (await p.locator('.side-link').filter({ hasText: 'Pickups' }).count()) > 0 &&
+      (await p.locator('.side-link').filter({ hasText: 'Updates' }).count()) > 0 &&
+      (await p.locator('.side-link').filter({ hasText: 'Settings' }).count()) > 0 &&
+      (await p.locator('.side-link').filter({ hasText: 'Staff management' }).count()) > 0)
+    rec(`${prefix} phone tabbar hidden`, (await p.locator('.tabbar').count()) === 0)
+    await p.locator('article').filter({ hasText: 'Buddy' }).click()
+    await p.getByText('Visit Timeline').waitFor()
+    await shot(p, `${prefix}-staff-dashboard`)
+    const ov1 = await overflowInfo(p)
+    rec(`${prefix} patients no horizontal overflow`, ov1.ok, `scroll=${ov1.w} viewport=${ov1.c}`)
+    await p.getByRole('button', { name: 'Schedule Pickup' }).click()
+    await p.getByTestId('send-pickup').click()
+    await p.getByText('Pickup request sent to owner').waitFor()
+    await p.locator('.side-link').filter({ hasText: 'Pickups' }).click()
+    await p.locator('.pickup-table').waitFor()
+    rec(`${prefix} pickups table visible`, true)
+    rec(`${prefix} pickup status color`, (await p.locator('.status-dot.amber, .status-flag.status-amber').count()) > 0)
+    await shot(p, `${prefix}-staff-pickups`)
+    const ov2 = await overflowInfo(p)
+    rec(`${prefix} pickups no horizontal overflow`, ov2.ok, `scroll=${ov2.w} viewport=${ov2.c}`)
+    if (expectFeed) rec(`${prefix} live feed column`, (await p.getByTestId('live-feed').count()) > 0)
+    else rec(`${prefix} no live feed column`, (await p.getByTestId('live-feed').count()) === 0)
+    await asOwner(p, 'jamie')
+    rec(`${prefix} owner stays in phone column`, (await p.locator('.app-shell.owner-mode .phone').count()) > 0)
+    await p.getByText('Visit Timeline').waitFor()
+    await shot(p, `${prefix}-owner`)
+    const ov3 = await overflowInfo(p)
+    rec(`${prefix} owner no horizontal overflow`, ov3.ok, `scroll=${ov3.w} viewport=${ov3.c}`)
+  } catch (err) {
+    rec(`${prefix} unhandled error`, false, String(err && err.message ? err.message : err).slice(0, 400))
+    try { await shot(p, `${prefix}-error`) } catch {}
+    console.error(err)
+  } finally {
+    await ctx.close()
+  }
+}
+
+try {
+  await staffWideChecks(browser, 'ipad', { width: 820, height: 1180 }, false)
+  await staffWideChecks(browser, 'desktop', { width: 1440, height: 900 }, true)
+} catch (err) {
+  rec('wide viewport runner error', false, String(err).slice(0, 400))
+}
+
+await browser.close()
+const failed = results.filter((r) => !r.ok)
+console.log('\n======== RESULTS ========')
+for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? ' — ' + r.detail : ''}`)
+console.log(failed.length ? `${failed.length} failed` : 'all passed')
+process.exit(failed.length ? 1 : 0)

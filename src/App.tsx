@@ -38,10 +38,12 @@ function MainApp() {
   const { state, session, apply, reset, login, logout } = store
   const staff = session?.kind === 'staff' ? state.staff.find((s) => s.id === session.staffId) : undefined
   const owner = session?.kind === 'owner' ? state.owners.find((o) => o.id === session.ownerId) : undefined
+  const mode = !session ? 'welcome-mode' : session.kind === 'staff' ? 'staff-mode' : 'owner-mode'
+  const base = import.meta.env.BASE_URL || '/'
 
   return (
-    <div className="app-shell">
-      <div className="phone">
+    <div className={`app-shell ${mode}`}>
+      <div className={session?.kind === 'staff' ? 'workspace' : 'phone'}>
         {!session && <Welcome state={state} onLogin={login} />}
         {session?.kind === 'staff' && staff && (
           <StaffApp
@@ -73,9 +75,9 @@ function MainApp() {
       </div>
       <div className="desktop-hint">
         <strong>Pawgress prototype</strong>
-        <p>This phone frame is a preview. Open the same link on your phone to test camera and Add to Home Screen.</p>
+        <p>Open this link on a phone for the owner experience, or sign in as staff on a tablet or computer.</p>
         <p>
-          <a href="/?split=1">Open split demo</a> to see staff and owner side by side.
+          <a href={`${base}?split=1`}>Open split demo</a> to see staff and owner side by side.
         </p>
       </div>
     </div>
@@ -154,7 +156,7 @@ function SplitDemo() {
       <div className="split-page">
         <h1>Split demo</h1>
         <p>This view is designed for a desktop or tablet width. On a phone, use Switch user instead.</p>
-        <p><a href="/">Open the app</a></p>
+        <p><a href={import.meta.env.BASE_URL || '/'}>Open the app</a></p>
       </div>
     )
   }
@@ -165,10 +167,10 @@ function SplitDemo() {
         Staff on the left, owner on the right. They share the same demo data in this browser.
       </p>
       <div className="split-frames">
-        <iframe title="Staff" src="/?role=staff&user=sarah" />
-        <iframe title="Owner" src="/?role=owner&user=jamie" />
+        <iframe title="Staff" src={`${import.meta.env.BASE_URL || '/'}?role=staff&user=sarah`} />
+        <iframe title="Owner" src={`${import.meta.env.BASE_URL || '/'}?role=owner&user=jamie`} />
       </div>
-      <p style={{ textAlign: 'center' }}><a href="/">Back to single view</a></p>
+      <p style={{ textAlign: 'center' }}><a href={import.meta.env.BASE_URL || '/'}>Back to single view</a></p>
     </div>
   )
 }

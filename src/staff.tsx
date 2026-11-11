@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AppState, Patient, Session, Staff } from './types'
 import { TEMPLATES } from './types'
 import {
@@ -21,6 +21,25 @@ type StaffView =
   | { name: 'pickup'; id: string }
   | { name: 'manage' }
   | { name: 'notices' }
+
+
+function useWide() {
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches)
+  const [desktop, setDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1100px)').matches)
+  useEffect(() => {
+    const t = window.matchMedia('(min-width: 768px)')
+    const d = window.matchMedia('(min-width: 1100px)')
+    const onT = () => setWide(t.matches)
+    const onD = () => setDesktop(d.matches)
+    t.addEventListener('change', onT)
+    d.addEventListener('change', onD)
+    return () => {
+      t.removeEventListener('change', onT)
+      d.removeEventListener('change', onD)
+    }
+  }, [])
+  return { wide, desktop }
+}
 
 const SAMPLE_PHOTOS = [
   { src: asset('samples/sample-resting.svg'), label: 'Resting' },
@@ -52,8 +71,29 @@ export function StaffApp({
   const [todayOnly, setTodayOnly] = useState(true)
   const [menu, setMenu] = useState(false)
 
+  const { wide, desktop } = useWide()
   const unread = state.notifications.filter((n) => n.audience === 'staff' && !n.readBy.includes(staff.id)).length
   const needsCall = state.pickups.filter((p) => p.status === 'Needs a Call' || p.status === 'Declined')
+  const selectedId = view.name === 'detail' || view.name === 'send' || view.name === 'pickup' ? view.id : undefined
+
+  const openPatient = (id: string) => {
+    setTab('patients')
+    setView({ name: 'detail', id })
+  }
+  const openSend = (id: string) => {
+    setTab('patients')
+    setView({ name: 'send', id })
+  }
+  const openPickup = (id: string) => {
+    setTab('patients')
+    setView({ name: 'pickup', id })
+  }
+  const goTab = (next: StaffTab) => {
+    setTab(next)
+    if (next === 'settings') setView({ name: 'list' })
+    else if (next === 'pickups' || next === 'updates') setView({ name: 'list' })
+  }
+
 
   const header = (
     <header className="header">
@@ -115,9 +155,185 @@ export function StaffApp({
     </header>
   )
 
+  const phoneChrome = header
+
+  const detailPanel = selectedId && tab === 'patients' ? (
+    view.name === 'send' ? (
+      <SendUpdate
+        state={state}
+        staff={staff}
+        patientId={selectedId}
+        apply={apply}
+        onDone={() => {
+          showToast('Update saved and sent to owner')
+          setView({ name: 'detail', id: selectedId })
+        }}
+      />
+    ) : view.name === 'pickup' ? (
+      <SchedulePickup
+        state={state}
+        staff={staff}
+        patientId={selectedId}
+        apply={apply}
+        onDone={() => {
+          showToast('Pickup request sent to owner')
+          setView({ name: 'detail', id: selectedId })
+        }}
+      />
+    ) : (
+      <Detail
+        state={state}
+        staff={staff}
+        patientId={selectedId}
+        onSend={() => setView({ name: 'send', id: selectedId })}
+        onPickup={() => setView({ name: 'pickup', id: selectedId })}
+        onPhoto={onPhoto}
+        apply={apply}
+      />
+    )
+  ) : tab === 'patients' ? (
+    <div className="empty-panel">
+      <Wordmark subtitle="Vet" />
+      <h2>Select a patient</h2>
+      <p className="meta">Choose a pet from the list to view their visit timeline, send an update, or schedule pickup.</p>
+    </div>
+  ) : null
+
+  if (wide) {
+    return (
+      <div className={`staff-wide ${desktop ? 'is-desktop' : 'is-tablet'}`} data-testid="staff-wide">
+        <aside className="sidebar">
+          <div className="sidebar-brand">
+            <Wordmark subtitle="Vet" />
+            <button className="clinic-select" type="button">{state.clinicName}</button>
+          </div>
+          <nav className="sidebar-nav">
+            <button className={`side-link ${tab === 'patients' && view.name !== 'manage' && view.name !== 'notices' ? 'active' : ''}`} onClick={() => goTab('patients')}>
+              {Ico.patients} Patients
+            </button>
+            <button className={`side-link ${tab === 'pickups' ? 'active' : ''}`} onClick={() => goTab('pickups')}>
+              {Ico.schedule} Pickups
+              {needsCall.length > 0 && <span className="side-badge">{needsCall.length}</span>}
+            </button>
+            <button className={`side-link ${tab === 'updates' ? 'active' : ''}`} onClick={() => goTab('updates')}>
+              {Ico.updates} Updates
+            </button>
+            <button className={`side-link ${tab === 'settings' && view.name !== 'manage' && view.name !== 'notices' ? 'active' : ''}`} onClick={() => goTab('settings')}>
+              {Ico.settings} Settings
+            </button>
+            {staff.permissions.manageStaff && (
+              <button className={`side-link ${view.name === 'manage' ? 'active' : ''}`} onClick={() => { setTab('settings'); setView({ name: 'manage' }) }}>
+                {Ico.account} Staff management
+              </button>
+            )}
+          </nav>
+          <div className="sidebar-user">
+            <div className="avatar-btn" aria-hidden="true">{initials(staff.name)}</div>
+            <div>
+              <div className="sidebar-user-name">{staff.name}</div>
+              <div className="meta">{staff.title}</div>
+            </div>
+          </div>
+        </aside>
+        <div className="staff-body">
+          {menu && (
+            <div className="menu">
+              <div style={{ padding: '8px 12px', fontWeight: 800 }}>{staff.name}</div>
+              <div style={{ padding: '0 12px 8px', color: 'var(--muted)', fontSize: 13 }}>{staff.title}</div>
+              <button onClick={() => { setMenu(false); onSwitch() }}>Switch user</button>
+            </div>
+          )}
+          <header className="staff-topbar">
+            <div className="staff-topbar-title">
+              {tab === 'patients' && 'Patients'}
+              {tab === 'pickups' && 'Pickups'}
+              {tab === 'updates' && 'Updates'}
+              {tab === 'settings' && view.name === 'manage' && 'Staff management'}
+              {tab === 'settings' && view.name === 'notices' && 'Notifications'}
+              {tab === 'settings' && view.name !== 'manage' && view.name !== 'notices' && 'Settings'}
+            </div>
+            <div className="row">
+              <button
+                className="icon-btn"
+                aria-label="Notifications"
+                onClick={() => {
+                  setTab('settings')
+                  setView({ name: 'notices' })
+                  apply((s) => ({
+                    ...s,
+                    notifications: s.notifications.map((n) =>
+                      n.audience === 'staff' && !n.readBy.includes(staff.id)
+                        ? { ...n, readBy: [...n.readBy, staff.id] }
+                        : n,
+                    ),
+                  }))
+                }}
+              >
+                {Ico.bell}
+                {unread > 0 && <span className="dot" />}
+              </button>
+              <button className="avatar-btn" onClick={() => setMenu((v) => !v)} aria-label="Account menu">
+                {initials(staff.name)}
+              </button>
+            </div>
+          </header>
+          <div className="staff-cols">
+            {tab === 'patients' && view.name !== 'notices' && (
+              <>
+                <div className="list-col">
+                  <List
+                    state={state}
+                    todayOnly={todayOnly}
+                    setTodayOnly={setTodayOnly}
+                    onOpen={openPatient}
+                    onSend={openSend}
+                    compact
+                    selectedId={selectedId}
+                  />
+                </div>
+                <div className="detail-col">{detailPanel}</div>
+              </>
+            )}
+            {tab === 'pickups' && (
+              <div className="main-col">
+                <PickupBoard state={state} staff={staff} apply={apply} onSchedule={openPickup} table />
+              </div>
+            )}
+            {tab === 'updates' && (
+              <div className="main-col">
+                <ActivityFeed state={state} onOpen={openPatient} />
+              </div>
+            )}
+            {tab === 'settings' && view.name === 'manage' && staff.permissions.manageStaff && (
+              <div className="main-col">
+                <StaffManage state={state} apply={apply} onBack={() => { setTab('settings'); setView({ name: 'list' }) }} />
+              </div>
+            )}
+            {tab === 'settings' && view.name === 'notices' && (
+              <div className="main-col">
+                <StaffNotices state={state} staffId={staff.id} onOpen={openPatient} />
+              </div>
+            )}
+            {tab === 'settings' && view.name !== 'manage' && view.name !== 'notices' && (
+              <div className="main-col">
+                <Settings state={state} staff={staff} apply={apply} reset={reset} onSwitch={onSwitch} onManage={() => setView({ name: 'manage' })} showToast={showToast} />
+              </div>
+            )}
+            {desktop && tab !== 'updates' && view.name !== 'notices' && (
+              <aside className="feed-col" data-testid="live-feed">
+                <ActivityFeed state={state} onOpen={openPatient} live />
+              </aside>
+            )}
+          </div>
+        </div>
+        {toast && <div className="toast">{toast}</div>}
+      </div>
+    )
+  }
+
   return (
     <div className="screen">
-      {header}
+      {phoneChrome}
       {tab === 'patients' && view.name === 'list' && (
         <List
           state={state}
@@ -217,12 +433,16 @@ function List({
   setTodayOnly,
   onOpen,
   onSend,
+  compact,
+  selectedId,
 }: {
   state: AppState
   todayOnly: boolean
   setTodayOnly: (v: boolean) => void
   onOpen: (id: string) => void
   onSend: (id: string) => void
+  compact?: boolean
+  selectedId?: string
 }) {
   const list = state.patients.filter((p) => (todayOnly ? p.today : true))
   return (
@@ -239,7 +459,7 @@ function List({
         {list.map((p) => {
           const pickup = activePickup(state, p.id)
           return (
-            <article key={p.id} className="card patient-card" onClick={() => onOpen(p.id)} role="button">
+            <article key={p.id} className={`card patient-card${compact ? ' compact' : ''}${selectedId === p.id ? ' selected' : ''}`} onClick={() => onOpen(p.id)} role="button">
               <div className="patient-main">
                 <PetAvatar name={p.avatarKey} />
                 <div className="patient-info">
@@ -665,19 +885,118 @@ function SchedulePickup({
   )
 }
 
+function pickupTone(status: string): 'green' | 'amber' | 'red' | 'gray' {
+  if (status === 'Confirmed' || status === 'Completed') return 'green'
+  if (status === 'Awaiting Confirmation') return 'amber'
+  if (status === 'Declined' || status === 'Needs a Call') return 'red'
+  return 'gray'
+}
+
 function PickupBoard({
   state,
   staff,
   apply,
   onSchedule,
+  table,
 }: {
   state: AppState
   staff: Staff
   apply: (fn: (s: AppState) => AppState) => void
   onSchedule: (patientId: string) => void
+  table?: boolean
 }) {
   const rows = [...state.pickups].sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))
   const alerts = rows.filter((p) => p.status === 'Needs a Call' || p.status === 'Declined')
+  if (table) {
+    return (
+      <div className="scroll no-tab">
+        <h2 className="h1">Pickups</h2>
+        {alerts.length > 0 && (
+          <div className="alert-banner">{alerts.length} pickup{alerts.length > 1 ? 's' : ''} need follow-up</div>
+        )}
+        {rows.length === 0 && <div className="card meta">No pickup requests yet. Schedule one from a patient record.</div>}
+        {rows.length > 0 && (
+          <div className="table-card">
+            <table className="table pickup-table">
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>Pickup</th>
+                  <th>Status</th>
+                  <th>Owner</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((pk) => {
+                  const p = state.patients.find((x) => x.id === pk.patientId)
+                  const owner = state.owners.find((o) => o.id === p?.ownerId)
+                  const tone = pickupTone(pk.status)
+                  return (
+                    <tr key={pk.id}>
+                      <td>
+                        <strong>{p?.name ?? pk.patientId}</strong>
+                        <div className="meta">{p?.visitType}</div>
+                      </td>
+                      <td>
+                        <strong>{pk.proposedTime}</strong>
+                        {pk.status === 'Awaiting Confirmation' && (
+                          <div className="meta">{pickupCountdown(pk, state.settings).label}</div>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`status-flag status-${tone}`}>
+                          <span className={`status-dot ${tone}`} />
+                          {pk.status}
+                        </span>
+                      </td>
+                      <td>{p?.ownerName}</td>
+                      <td>
+                        <div className="table-actions">
+                          {(pk.status === 'Needs a Call' || pk.status === 'Declined') && owner && (
+                            <a className="btn btn-primary btn-sm" href={`tel:${owner.phone.replace(/[^\d+]/g, '')}`}>Call owner</a>
+                          )}
+                          {(pk.status === 'Needs a Call' || pk.status === 'Declined') && staff.permissions.schedulePickup && (
+                            <button className="btn btn-ghost btn-sm" onClick={() => onSchedule(pk.patientId)}>New time</button>
+                          )}
+                          {staff.permissions.manageConfirmations && (pk.status === 'Confirmed' || pk.status === 'Awaiting Confirmation' || pk.status === 'Needs a Call') && (
+                            <>
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() =>
+                                  apply((s) => ({
+                                    ...s,
+                                    pickups: s.pickups.map((x) => x.id === pk.id ? { ...x, status: 'Completed' as const, completedAt: new Date().toISOString() } : x),
+                                  }))
+                                }
+                              >
+                                Mark Completed
+                              </button>
+                              <button
+                                className="btn btn-outline-danger btn-sm"
+                                onClick={() =>
+                                  apply((s) => ({
+                                    ...s,
+                                    pickups: s.pickups.map((x) => x.id === pk.id ? { ...x, status: 'Canceled' as const, canceledAt: new Date().toISOString() } : x),
+                                  }))
+                                }
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
   return (
     <div className="scroll">
       <h2 className="h1">Pickups</h2>
@@ -738,11 +1057,11 @@ function PickupBoard({
   )
 }
 
-function ActivityFeed({ state, onOpen }: { state: AppState; onOpen: (id: string) => void }) {
+function ActivityFeed({ state, onOpen, live }: { state: AppState; onOpen: (id: string) => void; live?: boolean }) {
   const items = [...state.updates].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   return (
-    <div className="scroll">
-      <h2 className="h1">Updates</h2>
+    <div className={`scroll ${live ? 'no-tab feed-scroll' : ''}`}>
+      <h2 className="h1">{live ? 'Live updates' : 'Updates'}</h2>
       <p className="meta" style={{ marginBottom: 12 }}>Every team member can see updates sent by anyone.</p>
       {items.map((u) => {
         const p = state.patients.find((x) => x.id === u.patientId)
