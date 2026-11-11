@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560">
+  <rect width="800" height="560" fill="#E6F0FB"/>
+  <rect x="80" y="80" width="640" height="400" rx="28" fill="#F7FBFF"/>
+  <rect x="80" y="80" width="640" height="70" rx="28" fill="#C5D8F0"/>
+  <rect x="80" y="120" width="640" height="30" fill="#C5D8F0"/>
+  <rect x="140" y="200" width="320" height="200" rx="24" fill="#EDE7F8"/>
+  <ellipse cx="300" cy="320" rx="90" ry="70" fill="#D9D3E3"/>
+  <path d="M250 300 L260 230 L310 280" fill="#C9C2D4"/>
+  <path d="M350 300 L340 230 L290 280" fill="#C9C2D4"/>
+  <circle cx="288" cy="318" r="5" fill="#3D2A5C"/>
+  <circle cx="312" cy="318" r="5" fill="#3D2A5C"/>
+  <rect x="500" y="220" width="150" height="110" rx="12" fill="#2B6CBF"/>
+  <rect x="515" y="235" width="120" height="16" rx="4" fill="#E6F0FB"/>
+  <rect x="515" y="260" width="80" height="16" rx="4" fill="#E6F0FB"/>
+  <text x="400" y="520" text-anchor="middle" font-family="Nunito, Avenir, sans-serif" font-size="28" fill="#2B6CBF" font-weight="700">Being monitored</text>
+</svg>
